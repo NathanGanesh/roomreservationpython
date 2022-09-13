@@ -5,14 +5,11 @@ from flask_sqlalchemy import SQLAlchemy
 from os import path
 from flask_login import LoginManager
 
+
 db = SQLAlchemy()
 DB_NAME = "database.db"
 app = Flask(__name__)
 
-
-@app.cli.command('db_seed')
-def db_seed():
-    print("seeding db")
 
 
 def create_app():

@@ -1,20 +1,28 @@
 from flask import Flask
 from flask.json import jsonify
 # from website.constants.http_status_codes import HTTP_404_NOT_FOUND, HTTP_500_INTERNAL_SERVER_ERROR
+from flask_mail import Mail
 from flask_sqlalchemy import SQLAlchemy
 from os import path
 from flask_login import LoginManager
-
-
+from flask_marshmallow import Marshmallow
+from flask_jwt_extended import JWTManager, jwt_required, create_access_token
 db = SQLAlchemy()
 DB_NAME = "database.db"
 app = Flask(__name__)
-
-
+jwt = JWTManager(app)
+ma = Marshmallow(app)
+mail = Mail(app)
 
 def create_app():
     app.config['SECRET_KEY'] = "helloWorld"
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_NAME}'
+    app.config['MAIL_SERVER'] = 'smtp.mailtrap.io'
+    app.config['MAIL_PORT'] = 2525
+    app.config['MAIL_USERNAME'] = 'c63ebe40617db8'
+    app.config['MAIL_PASSWORD'] = '742899a32b8120'
+    app.config['MAIL_USE_TLS'] = True
+    app.config['MAIL_USE_SSL'] = False
     db.init_app(app)
     from .auth import auth
     from .views import views

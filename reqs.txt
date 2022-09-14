@@ -1,3 +1,6 @@
 pip install flask-login
 pip install flask-sqlalchemy
 pip install flask
+pip install flask-marshmallow
+pip install Flask-JWT-Extended
+pip install Flask-Mail

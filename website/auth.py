@@ -95,13 +95,11 @@ def update_profile():
 @jwt_required()
 def delete_profile():
     user = User.query.filter_by(email=get_jwt_identity()).first()
-
     if request.form.get("email") is not None:
         if check_same_user(email=request.form.get("email"), email2=user.email):
             db.session.delete(user)
             db.session.commit()
             return jsonify("succesfully deleted profile")
-
     return jsonify("invalid token please login again"), 401
 
 @auth.route("/logout")

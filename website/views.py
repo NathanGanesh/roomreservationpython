@@ -1,3 +1,6 @@
+from datetime import datetime
+from sqlite3 import Date
+
 from flask import Blueprint, render_template, jsonify, request
 
 from . import db
@@ -73,12 +76,11 @@ def get_all_user_reservations():
 @jwt_required()
 def delete_reservation_by_id(reservation_id: str):
     user = User.query.filter_by(email=get_jwt_identity()).first()
-    if request.form.get("email") is not None:
+    if request.form.get("email") != None:
         if user.email == request.form.get("email"):
-
             reservationsSql = text(
                 """SELECT resere.id AS resere_id, resere.date AS resere_date, resere.roomi AS resere_roomi, resere.useri AS resere_useri FROM resere WHERE resere.id = """ + str(
-                    reservation_id))
+                    reservation_id) + " and resere.useri = " + str(user.id))
             result = db.engine.execute(reservationsSql)
             actualResults = []
             for r in result:
@@ -91,4 +93,60 @@ def delete_reservation_by_id(reservation_id: str):
                 deleteReservationSql = text("""delete from resere where resere.id = """ + str(reservation_id))
                 db.engine.execute(deleteReservationSql)
                 return jsonify("success")
+    return jsonify("invalid token please login again"), 401
+
+
+@views.route("reservation/<string:room_id>/new", methods=["POST"])
+@jwt_required()
+def insert_reservation(room_id: str):
+    user = User.query.filter_by(email=get_jwt_identity()).first()
+    if request.form.get("email") is not None:
+        # if user.email == request.form.get("email"):
+            # find room
+        date = request.form.get("date").split("-")
+        reservations = Resere(date=datetime(int(date[0]), int(date[1]), int(date[2])))
+        oekRoom = Room.query.filter_by(id=room_id).first()
+        if oekRoom:
+            checkIfReservationOnDate = text("""SELECT * from room r inner join resere r2 on r.id = """ + str(room_id) + """ where r2.date = """ + ))
+            result = db.engine.execute(checkIfReservationOnDate)
+            oekresult = result.first()
+            actualResults = []
+            for r in result:
+                actualResults.append(dict(r.items()))
+            print(actualResults)
+            print(oekresult)
+            if len(oekRoom.reservations) is 0:
+                oekRoom.reservations.push(reservations)
+                user.reservations.push(reservations)
+                db.session.add(oekRoom)
+                db.session.add(user)
+                db.session.commit()
+            # find user
+            # add reservation
+            # save reservation
+                return jsonify("success")
+    return jsonify("invalid token please login again"), 401
+
+# todo
+@views.route("reservation/<string:reservation_id>/update", methods=["PUT"])
+@jwt_required()
+def update_reservation_by_id(reservation_id: str):
+    user = User.query.filter_by(email=get_jwt_identity()).first()
+    if request.form.get("email") != None:
+        if user.email == request.form.get("email"):
+            reservationsSql = text(
+                """SELECT resere.id AS resere_id, resere.date AS resere_date, resere.roomi AS resere_roomi, resere.useri AS resere_useri FROM resere WHERE resere.id = """ + str(
+                    reservation_id) + " and resere.useri = " + str(user.id))
+            result = db.engine.execute(reservationsSql)
+            actualResults = []
+            for r in result:
+                actualResults.append(dict(r.items()))
+            if len(actualResults) is not 0:
+                for i in range(len(actualResults)):
+                    if actualResults[i].get('resere_id') == reservation_id:
+                        insertReservationSql = text("""insert into resere ("date", roomi, useri)
+values ("""+ ")")
+                        break
+                return jsonify("success")
+            return jsonify("success")
     return jsonify("invalid token please login again"), 401

@@ -99,32 +99,31 @@ def delete_reservation_by_id(reservation_id: str):
 @views.route("reservation/<string:room_id>/new", methods=["POST"])
 @jwt_required()
 def insert_reservation(room_id: str):
+
     user = User.query.filter_by(email=get_jwt_identity()).first()
     if request.form.get("email") is not None:
         # if user.email == request.form.get("email"):
             # find room
         date = request.form.get("date").split("-")
+
         reservations = Resere(date=datetime(int(date[0]), int(date[1]), int(date[2])))
-        oekRoom = Room.query.filter_by(id=room_id).first()
-        if oekRoom:
-            checkIfReservationOnDate = text("""SELECT * from room r inner join resere r2 on r.id = """ + str(room_id) + """ where r2.date = """ + ))
+        foundRoom = Room.query.filter_by(id=room_id).first()
+        if foundRoom:
+            checkIfReservationOnDate = text("""SELECT r.name from room r inner join resere r2 on r.id = '""" +  room_id  + """' where r2.date = '""" +request.form.get("date")  + """'""")
             result = db.engine.execute(checkIfReservationOnDate)
-            oekresult = result.first()
-            actualResults = []
-            for r in result:
-                actualResults.append(dict(r.items()))
-            print(actualResults)
-            print(oekresult)
-            if len(oekRoom.reservations) is 0:
-                oekRoom.reservations.push(reservations)
-                user.reservations.push(reservations)
-                db.session.add(oekRoom)
+            roomReservationDate = result.first()
+            if roomReservationDate is None:
+                foundRoom.reservations.append(reservations)
+                user.reservations.append(reservations)
+                db.session.add(foundRoom)
                 db.session.add(user)
                 db.session.commit()
             # find user
             # add reservation
             # save reservation
                 return jsonify("success")
+            return jsonify("error room already has a reservation")
+        return jsonify("room wasnt found")
     return jsonify("invalid token please login again"), 401
 
 # todo

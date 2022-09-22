@@ -1,6 +1,4 @@
 from datetime import datetime
-from sqlite3 import Date
-
 from flask import Blueprint, render_template, jsonify, request
 
 from . import db
@@ -8,17 +6,7 @@ from .models import Room, rooms_schema, User, Resere
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
 from sqlalchemy import text
 
-# sql = text('select name from penguins')
-# result = db.engine.execute(sql)
-# names = [row[0] for row in result]
-# print names
 views = Blueprint("views", __name__)
-
-
-@views.route("/home")
-def home():
-    return render_template("home.html")
-
 
 @views.route("/room/all", methods=["GET"])
 def get_free_rooms_date():
@@ -31,22 +19,26 @@ def get_free_rooms_date():
         return jsonify(names)
 
 
-# <int:planet_id>
-
 @views.route("/room/all/date", methods=["GET"])
 @jwt_required()
 def get_free_rooms_date_with_status():
     startDate = request.args.get('startDate', None)
     endDate = request.args.get('endDate', None)
     if startDate is not None and endDate is not None:
-        oekSql = text("""select room.name, room.descriptionBuilding, room.endDate, room.startDate, r.date, u.firstName, u.lastName, u.email, r.id from room  inner join resere r on room.id = r.roomi
-            inner join user u on u.id = r.useri
-            where room.startDate >= '""" + startDate + "'and room.endDate >=" + endDate)
+        oekSql = text("""select room.id,room.name, room.descriptionBuilding, room.endDate, room.startDate from room where room.startDate >= '""" + startDate + "'and room.endDate >=" + endDate)
         result = db.engine.execute(oekSql)
         actualResults = []
         for r in result:
-            actualResults.append(dict(r.items()))
-
+            room = dict(r.items())
+            roomReservationSql = text("""select u.firstName, u.lastName, r.date from resere r inner join user u on u.id =useri where roomi = '""" + str(room.get('id')) + """'""")
+            currentRoomReservation = db.engine.execute(roomReservationSql)
+            actualReservations = []
+            for g in currentRoomReservation:
+                reserve = dict(g.items())
+                actualReservations.append(reserve)
+            room["reservations"] = actualReservations
+            actualResults.append(room)
+        print(actualResults)
         return jsonify(rooms=actualResults)
     else:
         return jsonify(message="bad request"), 400

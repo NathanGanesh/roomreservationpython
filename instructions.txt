@@ -1,1 +1,1 @@
-to seed the database type in the terminal venv flask db_seed
+to seed the database type in the terminal venv  flask db_seed

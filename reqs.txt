@@ -4,3 +4,4 @@ pip install flask
 pip install flask-marshmallow
 pip install Flask-JWT-Extended
 pip install Flask-Mail
+pip install pytest

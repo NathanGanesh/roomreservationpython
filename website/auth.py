@@ -32,7 +32,7 @@ def login():
     return "logged in"
 
 
-@auth.route("/register", methods=['GET', 'POST'])
+@auth.route("/register", methods=['POST'])
 def sign_up():
     firstName = request.form.get("firstName")
     lastName = request.form.get("lastName")
@@ -61,7 +61,7 @@ def sign_up():
         db.session.add(new_user)
         db.session.commit()
         login_user(new_user, remember=True)
-        return "successfull created account"
+        return jsonify("successfull created account")
 
 
 @auth.route('/retrieve_password/<string:email>', methods=['GET'])
@@ -99,7 +99,7 @@ def delete_profile():
         if check_same_user(email=request.form.get("email"), email2=user.email):
             db.session.delete(user)
             db.session.commit()
-            return jsonify("succesfully deleted profile")
+            return jsonify("succesfully deleted profile"), 200
     return jsonify("invalid token please login again"), 401
 
 @auth.route("/logout")

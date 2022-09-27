@@ -87,7 +87,6 @@ def delete_reservation_by_id(reservation_id: str):
                 return jsonify("success")
     return jsonify("invalid token please login again"), 401
 
-
 @views.route("reservation/<string:room_id>/new", methods=["POST"])
 @jwt_required()
 def insert_reservation(room_id: str):
@@ -110,9 +109,6 @@ def insert_reservation(room_id: str):
                 db.session.add(foundRoom)
                 db.session.add(user)
                 db.session.commit()
-            # find user
-            # add reservation
-            # save reservation
                 return jsonify("success")
             return jsonify("error room already has a reservation")
         return jsonify("room wasnt found")
@@ -128,16 +124,14 @@ def update_reservation_by_id(reservation_id: str):
             reservationsSql = text(
                 """SELECT resere.id AS resere_id, resere.date AS resere_date, resere.roomi AS resere_roomi, resere.useri AS resere_useri FROM resere WHERE resere.id = """ + str(
                     reservation_id) + " and resere.useri = " + str(user.id))
-            result = db.engine.execute(reservationsSql)
-            actualResults = []
-            for r in result:
-                actualResults.append(dict(r.items()))
-            if len(actualResults) is not 0:
-                for i in range(len(actualResults)):
-                    if actualResults[i].get('resere_id') == reservation_id:
-                        insertReservationSql = text("""insert into resere ("date", roomi, useri)
-values ("""+ ")")
-                        break
-                return jsonify("success")
-            return jsonify("success")
+            result = db.engine.execute(reservationsSql).first()
+            if result:
+                roomId = request.form.get("room_id")
+                if roomId is not None:
+                    foundRoom = Room.query.filter_by(id=roomId).first()
+                    if foundRoom:
+                        checkIfReservationOnDate = text(
+                            """SELECT r.name from room r inner join resere r2 on r.id = """ + str(roomId) + """ where r2.date = """ + result[1])
+                        result = db.engine.execute(checkIfReservationOnDate)
+                        roomReservationDate = result.first()
     return jsonify("invalid token please login again"), 401

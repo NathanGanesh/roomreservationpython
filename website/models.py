@@ -1,93 +1,137 @@
-from datetime import date, datetime
+from __future__ import annotations
 
-from . import db, app, ma
-from flask_login import UserMixin
-from sqlalchemy.sql import func
-from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import UTC, datetime
+
+from sqlalchemy import UniqueConstraint
+from werkzeug.security import check_password_hash, generate_password_hash
+
+from . import db
 
 
-class User(db.Model, UserMixin):
+class SerializableMixin:
+    def _serialize_datetime(self, value):
+        return value.isoformat() if value else None
+
+
+class User(db.Model, SerializableMixin):
     id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(150))
-    firstName = db.Column(db.String(150))
-    lastName = db.Column(db.String(150))
-    password = db.Column(db.String(150))
-    active = db.Column(db.Boolean, default=True)
-    date_created = db.Column(db.DateTime(timezone=True), default=func.now())
-    reservations = db.relationship('Resere', backref='user', passive_deletes=True)
+    email = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    first_name = db.Column(db.String(120), nullable=False)
+    last_name = db.Column(db.String(120), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(
+        db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    alert_rules = db.relationship(
+        "AlertRule", back_populates="user", cascade="all, delete-orphan"
+    )
+
+    def set_password(self, password: str) -> None:
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password: str) -> bool:
+        return check_password_hash(self.password_hash, password)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "email": self.email,
+            "firstName": self.first_name,
+            "lastName": self.last_name,
+            "active": self.active,
+            "createdAt": self._serialize_datetime(self.created_at),
+        }
 
 
-class Room(db.Model):
-    __tablename__ = 'room'
+class AlertRule(db.Model, SerializableMixin):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(150), unique=True)
-    descriptionBuilding = db.Column(db.String(150))
-    startDate = db.Column(db.Date())
-    endDate = db.Column(db.Date())
-    reservations = db.relationship('Resere', backref='room', passive_deletes=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    keyword = db.Column(db.String(150), nullable=False)
+    category = db.Column(db.String(120), nullable=True)
+    min_price = db.Column(db.Float, nullable=True)
+    max_price = db.Column(db.Float, nullable=True)
+    location = db.Column(db.String(120), nullable=True)
+    active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(
+        db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    user = db.relationship("User", back_populates="alert_rules")
+    matches = db.relationship(
+        "Match", back_populates="alert_rule", cascade="all, delete-orphan"
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "userId": self.user_id,
+            "keyword": self.keyword,
+            "category": self.category,
+            "minPrice": self.min_price,
+            "maxPrice": self.max_price,
+            "location": self.location,
+            "active": self.active,
+            "createdAt": self._serialize_datetime(self.created_at),
+        }
 
 
-class Resere(db.Model):
-    __tablename__ = 'resere'
+class Listing(db.Model, SerializableMixin):
+    __table_args__ = (UniqueConstraint("source_name", "external_id"),)
+
     id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.Date())
-    roomi = db.Column(db.Integer, db.ForeignKey('room.id'))
-    useri = db.Column(db.Integer, db.ForeignKey('user.id'))
+    external_id = db.Column(db.String(150), nullable=False)
+    source_name = db.Column(db.String(120), nullable=False, default="marktplaats")
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    price = db.Column(db.Float, nullable=False)
+    currency = db.Column(db.String(10), nullable=False, default="EUR")
+    city = db.Column(db.String(120), nullable=True)
+    url = db.Column(db.String(512), nullable=False)
+    posted_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    ingested_at = db.Column(
+        db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    matches = db.relationship("Match", back_populates="listing", cascade="all, delete-orphan")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "externalId": self.external_id,
+            "sourceName": self.source_name,
+            "title": self.title,
+            "description": self.description,
+            "price": self.price,
+            "currency": self.currency,
+            "city": self.city,
+            "url": self.url,
+            "postedAt": self._serialize_datetime(self.posted_at),
+            "ingestedAt": self._serialize_datetime(self.ingested_at),
+        }
 
 
-class UserSchema(ma.Schema):
-    class Meta:
-        fields = ('id', 'email', 'firstName', 'lastName')
+class Match(db.Model, SerializableMixin):
+    __table_args__ = (UniqueConstraint("alert_rule_id", "listing_id"),)
 
+    id = db.Column(db.Integer, primary_key=True)
+    alert_rule_id = db.Column(db.Integer, db.ForeignKey("alert_rule.id"), nullable=False)
+    listing_id = db.Column(db.Integer, db.ForeignKey("listing.id"), nullable=False)
+    status = db.Column(db.String(50), nullable=False, default="new")
+    matched_at = db.Column(
+        db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
 
-class RoomSchema(ma.Schema):
-    class Meta:
-        fields = ('id', 'name', 'descriptionBuilding', 'startDate', 'endDate')
+    alert_rule = db.relationship("AlertRule", back_populates="matches")
+    listing = db.relationship("Listing", back_populates="matches")
 
-
-class ResereSchema(ma.Schema):
-    class Meta:
-        fields = ('id', 'date', 'roomi', 'useri')
-
-
-user_schema = UserSchema()
-users_schema = UserSchema(many=True)
-
-reservation_schema = ResereSchema()
-reservations_schema = ResereSchema(many=True)
-
-room_schema = RoomSchema()
-rooms_schema = RoomSchema(many=True)
-
-
-@app.cli.command('db_seed')
-def db_seed():
-    print("seeding db")
-    reservations = Resere(date=datetime(2022, 9, 10))
-    reservation2 = Resere(date=datetime(2022, 9, 11))
-    reservation3 = Resere(date=datetime(2022, 9, 12))
-    password1 = generate_password_hash('Pokemon!23', method='sha256')
-    janpeter = User(email='pokemon@gmail.com',
-                    firstName='jan', lastName='peter',
-                    password=password1, reservations=[reservations, reservation2])
-
-    dogGoblin = User(email='t1wew@gmail.com',
-                     firstName='kek', lastName='blin',
-                     password=password1, reservations=[reservation3])
-
-    room1 = Room(name="room1",
-                 descriptionBuilding="room1 good building",
-                 startDate=datetime(2022, 9, 12),
-                 endDate=datetime(2022, 10, 1), reservations=[reservations, reservation2])
-
-    room2 = Room(name="room2", descriptionBuilding="room2 good building",
-                 startDate=datetime(2022, 11, 12),
-                 endDate=datetime(2022, 12, 1), reservations=[reservation3])
-
-    db.session.add(dogGoblin)
-    db.session.add(janpeter)
-    db.session.add(room1)
-    db.session.add(room2)
-    db.session.commit()
-
-    print("oek oek seeded!")
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "alertRuleId": self.alert_rule_id,
+            "listingId": self.listing_id,
+            "status": self.status,
+            "matchedAt": self._serialize_datetime(self.matched_at),
+            "listing": self.listing.to_dict() if self.listing else None,
+        }

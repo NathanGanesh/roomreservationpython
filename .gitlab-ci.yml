@@ -1,0 +1,19 @@
+image: python:3.12
+
+stages:
+  - lint
+  - test
+
+before_script:
+  - python -m pip install --upgrade pip
+  - pip install -r reqs.txt
+
+lint:
+  stage: lint
+  script:
+    - ruff check .
+
+test:
+  stage: test
+  script:
+    - pytest

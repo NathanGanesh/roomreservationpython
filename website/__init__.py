@@ -1,59 +1,55 @@
-from flask import Flask
-from flask.json import jsonify
-# from website.constants.http_status_codes import HTTP_404_NOT_FOUND, HTTP_500_INTERNAL_SERVER_ERROR
-from flask_mail import Mail
+import os
+from pathlib import Path
+
+from flask import Flask, jsonify
+from flask_jwt_extended import JWTManager
+from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
-from os import path
-from flask_login import LoginManager
-from flask_marshmallow import Marshmallow
-from flask_jwt_extended import JWTManager, jwt_required, create_access_token
+
+from .config import CONFIG_BY_NAME
+
 db = SQLAlchemy()
-DB_NAME = "database.db"
-app = Flask(__name__)
-jwt = JWTManager(app)
-ma = Marshmallow(app)
-mail = Mail(app)
+jwt = JWTManager()
+migrate = Migrate()
 
-def create_app():
-    app.config['SECRET_KEY'] = "helloWorld"
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_NAME}'
-    app.config['MAIL_SERVER'] = 'smtp.mailtrap.io'
-    app.config['MAIL_PORT'] = 2525
-    app.config['MAIL_USERNAME'] = 'c63ebe40617db8'
-    app.config['MAIL_PASSWORD'] = '742899a32b8120'
-    app.config['MAIL_USE_TLS'] = True
-    app.config['MAIL_USE_SSL'] = False
+
+def create_app(test_config=None):
+    app = Flask(__name__, instance_relative_config=True)
+
+    if test_config is not None:
+        app.config.from_mapping(test_config)
+    else:
+        config_name = os.getenv("APP_ENV", "development")
+        app.config.from_object(CONFIG_BY_NAME[config_name])
+
+    Path(app.instance_path).mkdir(parents=True, exist_ok=True)
+
     db.init_app(app)
-    from .auth import auth
-    from .views import views
+    jwt.init_app(app)
+    migrate.init_app(app, db)
 
-    app.register_blueprint(auth, url_prefix="/")
-    app.register_blueprint(views, url_prefix="/")
+    from .auth import auth_bp
+    from .views import api_bp
 
-    from .models import User, Resere, Room
-    create_database(app)
+    app.register_blueprint(auth_bp, url_prefix="/auth")
+    app.register_blueprint(api_bp)
 
-    login_manager = LoginManager()
-    login_manager.login_view = "auth.login"
-    login_manager.init_app(app)
+    @app.get("/")
+    def index():
+        return jsonify(
+            {
+                "service": "DealRadar ingestion prototype",
+                "role": "Python scraper and matching backend",
+                "status": "ok",
+            }
+        )
 
-    # @app.errorhandler(HTTP_404_NOT_FOUND)
-    # def handle_404(e):
-    #     return jsonify({'error': 'Not found'}), HTTP_404_NOT_FOUND
-    #
-    # @app.errorhandler(HTTP_500_INTERNAL_SERVER_ERROR)
-    # def handle_500(e):
-    #     return jsonify({'error': 'Something went wrong, we are working on it'}), HTTP_500_INTERNAL_SERVER_ERROR
-    #
+    @app.errorhandler(404)
+    def handle_not_found(_error):
+        return jsonify({"error": "Not found"}), 404
 
-    @login_manager.user_loader
-    def load_user(id):
-        return User.query.get(int(id))
+    @app.errorhandler(500)
+    def handle_server_error(_error):
+        return jsonify({"error": "Internal server error"}), 500
 
     return app
-
-
-def create_database(app):
-    if not path.exists("website/" + DB_NAME):
-        db.create_all(app=app)
-        print("Created database!")

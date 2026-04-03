@@ -1,137 +1,208 @@
-from datetime import datetime
-from flask import Blueprint, render_template, jsonify, request
+from flask import Blueprint, jsonify, request
+from flask_jwt_extended import get_jwt_identity, jwt_required
 
 from . import db
-from .models import Room, rooms_schema, User, Resere
-from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
-from sqlalchemy import text
+from .repositories import AlertRuleRepository, ListingRepository, MatchRepository
+from .services import (
+    create_match,
+    create_alert_rule,
+    create_listing,
+    ingest_listings,
+    update_alert_rule,
+    update_listing,
+    update_match_status,
+)
 
-views = Blueprint("views", __name__)
-
-@views.route("/room/all", methods=["GET"])
-def get_free_rooms_date():
-    if (request.form.get("date") is not None):
-        date = (request.form.get("date"))
-        sql = text("""select room.name, room.startDate, room.endDate from room  inner join resere r on room.id = r.roomi where room.startDate 
-    > '""" + date + "' and r.date is not " + date)
-        result = db.engine.execute(sql)
-        names = [row[0] for row in result]
-        return jsonify(names)
+api_bp = Blueprint("api", __name__)
 
 
-@views.route("/room/all/date", methods=["GET"])
+def current_user_id():
+    return int(get_jwt_identity())
+
+
+@api_bp.get("/health")
+def health():
+    return jsonify({"status": "ok", "service": "dealradar-ingestion"}), 200
+
+
+@api_bp.get("/alert-rules")
 @jwt_required()
-def get_free_rooms_date_with_status():
-    startDate = request.args.get('startDate', None)
-    endDate = request.args.get('endDate', None)
-    if startDate is not None and endDate is not None:
-        oekSql = text("""select room.id,room.name, room.descriptionBuilding, room.endDate, room.startDate from room where room.startDate >= '""" + startDate + "'and room.endDate >=" + endDate)
-        result = db.engine.execute(oekSql)
-        actualResults = []
-        for r in result:
-            room = dict(r.items())
-            roomReservationSql = text("""select u.firstName, u.lastName, r.date from resere r inner join user u on u.id =useri where roomi = '""" + str(room.get('id')) + """'""")
-            currentRoomReservation = db.engine.execute(roomReservationSql)
-            actualReservations = []
-            for g in currentRoomReservation:
-                reserve = dict(g.items())
-                actualReservations.append(reserve)
-            room["reservations"] = actualReservations
-            actualResults.append(room)
-        print(actualResults)
-        return jsonify(rooms=actualResults)
-    else:
-        return jsonify(message="bad request"), 400
+def list_alert_rules():
+    rules = AlertRuleRepository.list_for_user(current_user_id())
+    return jsonify({"items": [rule.to_dict() for rule in rules]}), 200
 
 
-@views.route("reservation/user/all", methods=["GET"])
+@api_bp.post("/alert-rules")
 @jwt_required()
-def get_all_user_reservations():
-    user = User.query.filter_by(email=get_jwt_identity()).first()
-    if request.form.get("email") is not None:
-        if user.email == request.form.get("email"):
-            reservationsSql = text("""
-            select room.name, room.descriptionBuilding, room.endDate,
-       room.startDate, r.date, u.firstName, u.lastName,
-       u.email, r.id from room  inner join resere r on room.id = r.roomi
-            inner join user u on u.id = r.useri
-            where u.id = """ + str(user.id))
-            result = db.engine.execute(reservationsSql)
-            actualResults = []
-            for r in result:
-                actualResults.append(dict(r.items()))
-            return jsonify(reservations=actualResults)
-    return jsonify("invalid token please login again"), 401
+def post_alert_rule():
+    payload = request.get_json(silent=True) or {}
+    try:
+        rule = create_alert_rule(current_user_id(), payload)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(rule.to_dict()), 201
 
 
-@views.route("reservation/<string:reservation_id>/delete", methods=["DELETE"])
+@api_bp.get("/alert-rules/<int:rule_id>")
 @jwt_required()
-def delete_reservation_by_id(reservation_id: str):
-    user = User.query.filter_by(email=get_jwt_identity()).first()
-    if request.form.get("email") != None:
-        if user.email == request.form.get("email"):
-            reservationsSql = text(
-                """SELECT resere.id AS resere_id, resere.date AS resere_date, resere.roomi AS resere_roomi, resere.useri AS resere_useri FROM resere WHERE resere.id = """ + str(
-                    reservation_id) + " and resere.useri = " + str(user.id))
-            result = db.engine.execute(reservationsSql)
-            actualResults = []
-            for r in result:
-                actualResults.append(dict(r.items()))
-            if len(actualResults) is not 0:
-                for i in range(len(actualResults)):
-                    if actualResults[i].get('resere_id') == reservation_id:
-                        del actualResults[i]
-                        break
-                deleteReservationSql = text("""delete from resere where resere.id = """ + str(reservation_id))
-                db.engine.execute(deleteReservationSql)
-                return jsonify("success")
-    return jsonify("invalid token please login again"), 401
+def get_alert_rule(rule_id: int):
+    rule = AlertRuleRepository.get_for_user(rule_id, current_user_id())
+    if not rule:
+        return jsonify({"error": "alert rule not found"}), 404
+    return jsonify(rule.to_dict()), 200
 
-@views.route("reservation/<string:room_id>/new", methods=["POST"])
+
+@api_bp.put("/alert-rules/<int:rule_id>")
 @jwt_required()
-def insert_reservation(room_id: str):
+def put_alert_rule(rule_id: int):
+    rule = AlertRuleRepository.get_for_user(rule_id, current_user_id())
+    if not rule:
+        return jsonify({"error": "alert rule not found"}), 404
 
-    user = User.query.filter_by(email=get_jwt_identity()).first()
-    if request.form.get("email") is not None:
-        # if user.email == request.form.get("email"):
-            # find room
-        date = request.form.get("date").split("-")
+    payload = request.get_json(silent=True) or {}
+    try:
+        update_alert_rule(rule, payload)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(rule.to_dict()), 200
 
-        reservations = Resere(date=datetime(int(date[0]), int(date[1]), int(date[2])))
-        foundRoom = Room.query.filter_by(id=room_id).first()
-        if foundRoom:
-            checkIfReservationOnDate = text("""SELECT r.name from room r inner join resere r2 on r.id = '""" +  room_id  + """' where r2.date = '""" +request.form.get("date")  + """'""")
-            result = db.engine.execute(checkIfReservationOnDate)
-            roomReservationDate = result.first()
-            if roomReservationDate is None:
-                foundRoom.reservations.append(reservations)
-                user.reservations.append(reservations)
-                db.session.add(foundRoom)
-                db.session.add(user)
-                db.session.commit()
-                return jsonify("success")
-            return jsonify("error room already has a reservation")
-        return jsonify("room wasnt found")
-    return jsonify("invalid token please login again"), 401
 
-# todo
-@views.route("reservation/<string:reservation_id>/update", methods=["PUT"])
+@api_bp.delete("/alert-rules/<int:rule_id>")
 @jwt_required()
-def update_reservation_by_id(reservation_id: str):
-    user = User.query.filter_by(email=get_jwt_identity()).first()
-    if request.form.get("email") != None:
-        if user.email == request.form.get("email"):
-            reservationsSql = text(
-                """SELECT resere.id AS resere_id, resere.date AS resere_date, resere.roomi AS resere_roomi, resere.useri AS resere_useri FROM resere WHERE resere.id = """ + str(
-                    reservation_id) + " and resere.useri = " + str(user.id))
-            result = db.engine.execute(reservationsSql).first()
-            if result:
-                roomId = request.form.get("room_id")
-                if roomId is not None:
-                    foundRoom = Room.query.filter_by(id=roomId).first()
-                    if foundRoom:
-                        checkIfReservationOnDate = text(
-                            """SELECT r.name from room r inner join resere r2 on r.id = """ + str(roomId) + """ where r2.date = """ + result[1])
-                        result = db.engine.execute(checkIfReservationOnDate)
-                        roomReservationDate = result.first()
-    return jsonify("invalid token please login again"), 401
+def delete_alert_rule(rule_id: int):
+    rule = AlertRuleRepository.get_for_user(rule_id, current_user_id())
+    if not rule:
+        return jsonify({"error": "alert rule not found"}), 404
+
+    db.session.delete(rule)
+    db.session.commit()
+    return jsonify({"message": "alert rule deleted"}), 200
+
+
+@api_bp.get("/listings")
+@jwt_required()
+def list_listings():
+    listings = ListingRepository.list_all()
+    return jsonify({"items": [listing.to_dict() for listing in listings]}), 200
+
+
+@api_bp.post("/listings")
+@jwt_required()
+def post_listing():
+    payload = request.get_json(silent=True) or {}
+    try:
+        listing = create_listing(payload)
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(listing.to_dict()), 201
+
+
+@api_bp.get("/listings/<int:listing_id>")
+@jwt_required()
+def get_listing(listing_id: int):
+    listing = ListingRepository.get_by_id(listing_id)
+    if not listing:
+        return jsonify({"error": "listing not found"}), 404
+    return jsonify(listing.to_dict()), 200
+
+
+@api_bp.put("/listings/<int:listing_id>")
+@jwt_required()
+def put_listing(listing_id: int):
+    listing = ListingRepository.get_by_id(listing_id)
+    if not listing:
+        return jsonify({"error": "listing not found"}), 404
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        update_listing(listing, payload)
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(listing.to_dict()), 200
+
+
+@api_bp.delete("/listings/<int:listing_id>")
+@jwt_required()
+def delete_listing(listing_id: int):
+    listing = ListingRepository.get_by_id(listing_id)
+    if not listing:
+        return jsonify({"error": "listing not found"}), 404
+
+    db.session.delete(listing)
+    db.session.commit()
+    return jsonify({"message": "listing deleted"}), 200
+
+
+@api_bp.post("/ingestion/listings")
+@jwt_required()
+def post_ingestion_listings():
+    payload = request.get_json(silent=True) or {}
+    try:
+        listings, matches = ingest_listings(payload)
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    return (
+        jsonify(
+            {
+                "storedListings": [listing.to_dict() for listing in listings],
+                "createdMatches": [match.to_dict() for match in matches],
+                "matchCount": len(matches),
+            }
+        ),
+        201,
+    )
+
+
+@api_bp.get("/matches")
+@jwt_required()
+def list_matches():
+    matches = MatchRepository.list_for_user(current_user_id())
+    return jsonify({"items": [match.to_dict() for match in matches]}), 200
+
+
+@api_bp.post("/matches")
+@jwt_required()
+def post_match():
+    payload = request.get_json(silent=True) or {}
+    try:
+        match = create_match(current_user_id(), payload)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(match.to_dict()), 201
+
+
+@api_bp.get("/matches/<int:match_id>")
+@jwt_required()
+def get_match(match_id: int):
+    match = MatchRepository.get_for_user(match_id, current_user_id())
+    if not match:
+        return jsonify({"error": "match not found"}), 404
+    return jsonify(match.to_dict()), 200
+
+
+@api_bp.put("/matches/<int:match_id>")
+@jwt_required()
+def put_match(match_id: int):
+    match = MatchRepository.get_for_user(match_id, current_user_id())
+    if not match:
+        return jsonify({"error": "match not found"}), 404
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        update_match_status(match, payload)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(match.to_dict()), 200
+
+
+@api_bp.delete("/matches/<int:match_id>")
+@jwt_required()
+def delete_match(match_id: int):
+    match = MatchRepository.get_for_user(match_id, current_user_id())
+    if not match:
+        return jsonify({"error": "match not found"}), 404
+
+    db.session.delete(match)
+    db.session.commit()
+    return jsonify({"message": "match deleted"}), 200

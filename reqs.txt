@@ -1,7 +1,9 @@
-pip install flask-login
-pip install flask-sqlalchemy
-pip install flask
-pip install flask-marshmallow
-pip install Flask-JWT-Extended
-pip install Flask-Mail
-pip install pytest
+Flask==3.1.0
+Flask-JWT-Extended==4.7.1
+Flask-Migrate==4.1.0
+Flask-SQLAlchemy==3.1.1
+conventional-pre-commit==4.4.0
+psycopg[binary]==3.2.6
+pytest==8.3.5
+python-dotenv==1.0.1
+ruff==0.11.5

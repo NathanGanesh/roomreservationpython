@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import json
+from decimal import Decimal
 from datetime import UTC, datetime
+
+from sqlalchemy.exc import IntegrityError
 
 from . import db
 from .models import AlertRule, Listing, Match, User
@@ -17,6 +21,132 @@ def parse_iso_datetime(value):
         return None
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def require_json_object(payload, message: str):
+    if not isinstance(payload, dict):
+        raise ValueError(message)
+    return payload
+
+
+def normalize_required_text(value, field_name: str) -> str:
+    normalized = (value or "").strip().lower()
+    if not normalized:
+        raise ValueError(f"{field_name} is required")
+    return normalized
+
+
+def normalize_optional_text(value) -> str | None:
+    normalized = (value or "").strip().lower()
+    return normalized or None
+
+
+def normalize_optional_price(value) -> float | None:
+    if value in (None, ""):
+        return None
+    return float(Decimal(str(value)))
+
+
+def price_signature_token(value: float | None) -> str | None:
+    if value is None:
+        return None
+    return format(Decimal(str(value)).normalize(), "f")
+
+
+def validate_price_range(min_price: float | None, max_price: float | None) -> None:
+    if min_price is not None and max_price is not None and max_price < min_price:
+        raise ValueError("maxPrice must be greater than or equal to minPrice")
+
+
+def normalize_active(value, default: bool = True) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off"}:
+            return False
+    return bool(value)
+
+
+def build_alert_rule_signature(
+    *,
+    keyword: str,
+    category: str | None,
+    min_price: float | None,
+    max_price: float | None,
+    location: str | None,
+    active: bool,
+) -> str:
+    return json.dumps(
+        {
+            "active": active,
+            "category": category,
+            "keyword": keyword,
+            "location": location,
+            "maxPrice": price_signature_token(max_price),
+            "minPrice": price_signature_token(min_price),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def apply_alert_rule_payload(rule: AlertRule, payload: dict, *, default_active: bool | None = None) -> str:
+    keyword = (
+        normalize_required_text(payload.get("keyword"), "keyword")
+        if "keyword" in payload or rule.id is None
+        else rule.keyword
+    )
+    category = (
+        normalize_optional_text(payload.get("category"))
+        if "category" in payload or rule.id is None
+        else rule.category
+    )
+    min_price = (
+        normalize_optional_price(payload.get("minPrice"))
+        if "minPrice" in payload or rule.id is None
+        else rule.min_price
+    )
+    max_price = (
+        normalize_optional_price(payload.get("maxPrice"))
+        if "maxPrice" in payload or rule.id is None
+        else rule.max_price
+    )
+    location = (
+        normalize_optional_text(payload.get("location"))
+        if "location" in payload or rule.id is None
+        else rule.location
+    )
+    active = (
+        normalize_active(
+            payload.get("active"),
+            default=default_active if default_active is not None else True,
+        )
+        if "active" in payload or rule.id is None
+        else rule.active
+    )
+
+    validate_price_range(min_price, max_price)
+
+    rule.keyword = keyword
+    rule.category = category
+    rule.min_price = min_price
+    rule.max_price = max_price
+    rule.location = location
+    rule.active = active
+    rule.signature = build_alert_rule_signature(
+        keyword=keyword,
+        category=category,
+        min_price=min_price,
+        max_price=max_price,
+        location=location,
+        active=active,
+    )
+    return rule.signature
 
 
 def register_user(payload: dict) -> User:
@@ -69,47 +199,34 @@ def update_user(user: User, payload: dict) -> User:
 
 
 def create_alert_rule(user_id: int, payload: dict) -> AlertRule:
-    keyword = (payload.get("keyword") or "").strip()
-    if not keyword:
-        raise ValueError("keyword is required")
-
-    rule = AlertRule(
-        user_id=user_id,
-        keyword=keyword,
-        category=(payload.get("category") or "").strip() or None,
-        min_price=payload.get("minPrice"),
-        max_price=payload.get("maxPrice"),
-        location=(payload.get("location") or "").strip() or None,
-        active=payload.get("active", True),
-    )
+    rule = AlertRule(user_id=user_id, signature="")
+    signature = apply_alert_rule_payload(rule, payload, default_active=True)
+    if AlertRuleRepository.find_duplicate_for_user(user_id, signature):
+        raise ValueError("alert rule already exists")
     AlertRuleRepository.add(rule)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError as exc:
+        db.session.rollback()
+        raise ValueError("alert rule already exists") from exc
     return rule
 
 
 def update_alert_rule(rule: AlertRule, payload: dict) -> AlertRule:
-    if "keyword" in payload:
-        keyword = (payload.get("keyword") or "").strip()
-        if not keyword:
-            raise ValueError("keyword cannot be blank")
-        rule.keyword = keyword
-
-    if "category" in payload:
-        rule.category = (payload.get("category") or "").strip() or None
-    if "minPrice" in payload:
-        rule.min_price = payload.get("minPrice")
-    if "maxPrice" in payload:
-        rule.max_price = payload.get("maxPrice")
-    if "location" in payload:
-        rule.location = (payload.get("location") or "").strip() or None
-    if "active" in payload:
-        rule.active = bool(payload.get("active"))
-
-    db.session.commit()
+    signature = apply_alert_rule_payload(rule, payload)
+    if AlertRuleRepository.find_duplicate_for_user(rule.user_id, signature, exclude_rule_id=rule.id):
+        db.session.rollback()
+        raise ValueError("alert rule already exists")
+    try:
+        db.session.commit()
+    except IntegrityError as exc:
+        db.session.rollback()
+        raise ValueError("alert rule already exists") from exc
     return rule
 
 
 def build_listing(payload: dict, current: Listing | None = None) -> Listing:
+    payload = require_json_object(payload, "listing payload must be a JSON object")
     listing = current or Listing()
     listing.external_id = (payload.get("externalId") or "").strip()
     listing.source_name = (payload.get("sourceName") or "marktplaats").strip()
@@ -127,6 +244,7 @@ def build_listing(payload: dict, current: Listing | None = None) -> Listing:
 
 
 def create_listing(payload: dict) -> Listing:
+    payload = require_json_object(payload, "listing payload must be a JSON object")
     existing = ListingRepository.get_by_source_external_id(
         (payload.get("sourceName") or "marktplaats").strip(),
         (payload.get("externalId") or "").strip(),
@@ -200,6 +318,7 @@ def create_match(user_id: int, payload: dict) -> Match:
 
 
 def ingest_listings(payload: dict):
+    payload = require_json_object(payload, "payload must be a JSON object with a listings field")
     listings_payload = payload.get("listings") or []
     if not isinstance(listings_payload, list) or not listings_payload:
         raise ValueError("listings must be a non-empty array")
@@ -207,6 +326,7 @@ def ingest_listings(payload: dict):
     stored_listings = []
     created_matches = []
     for item in listings_payload:
+        require_json_object(item, "each listing must be a JSON object")
         source_name = (item.get("sourceName") or "marktplaats").strip()
         external_id = (item.get("externalId") or "").strip()
         existing = ListingRepository.get_by_source_external_id(source_name, external_id)

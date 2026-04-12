@@ -46,6 +46,8 @@ class User(db.Model, SerializableMixin):
 
 
 class AlertRule(db.Model, SerializableMixin):
+    __table_args__ = (UniqueConstraint("user_id", "signature", name="uq_alert_rule_user_signature"),)
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     keyword = db.Column(db.String(150), nullable=False)
@@ -54,6 +56,7 @@ class AlertRule(db.Model, SerializableMixin):
     max_price = db.Column(db.Float, nullable=True)
     location = db.Column(db.String(120), nullable=True)
     active = db.Column(db.Boolean, nullable=False, default=True)
+    signature = db.Column(db.String(512), nullable=False)
     created_at = db.Column(
         db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )

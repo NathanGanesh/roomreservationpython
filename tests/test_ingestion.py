@@ -106,6 +106,53 @@ def test_ingestion_creates_matches(client, auth_headers):
     assert update_response.get_json()["status"] == "reviewed"
 
 
+def test_listing_rejects_non_object_payload(client, auth_headers):
+    response = client.post("/listings", json=[{"externalId": "mk-1"}], headers=auth_headers)
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "listing payload must be a JSON object"
+
+
+def test_ingestion_rejects_non_object_top_level_payload(client, auth_headers):
+    response = client.post(
+        "/ingestion/listings",
+        json=[
+            {
+                "externalId": "mk-1",
+                "sourceName": "marktplaats",
+                "title": "Example listing",
+                "price": 100,
+                "url": "https://example.com/listings/mk-1",
+            }
+        ],
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "payload must be a JSON object with a listings field"
+
+
+def test_ingestion_rejects_missing_or_empty_listings_array(client, auth_headers):
+    missing_response = client.post("/ingestion/listings", json={}, headers=auth_headers)
+    empty_response = client.post("/ingestion/listings", json={"listings": []}, headers=auth_headers)
+
+    assert missing_response.status_code == 400
+    assert missing_response.get_json()["error"] == "listings must be a non-empty array"
+    assert empty_response.status_code == 400
+    assert empty_response.get_json()["error"] == "listings must be a non-empty array"
+
+
+def test_ingestion_rejects_non_object_listing_items(client, auth_headers):
+    response = client.post(
+        "/ingestion/listings",
+        json={"listings": ["bad-item"]},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "each listing must be a JSON object"
+
+
 def test_manual_match_crud(client, auth_headers):
     rule_response = client.post(
         "/alert-rules",

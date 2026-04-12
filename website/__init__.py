@@ -6,7 +6,7 @@ from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 
-from .config import CONFIG_BY_NAME
+from .config import CONFIG_BY_NAME, BaseConfig
 
 db = SQLAlchemy()
 jwt = JWTManager()
@@ -15,6 +15,7 @@ migrate = Migrate()
 
 def create_app(test_config=None):
     app = Flask(__name__, instance_relative_config=True)
+    app.config.from_object(BaseConfig)
 
     if test_config is not None:
         app.config.from_mapping(test_config)

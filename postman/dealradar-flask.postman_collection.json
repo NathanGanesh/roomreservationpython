@@ -1,0 +1,973 @@
+{
+  "info": {
+    "_postman_id": "1d626d5c-a80b-4dc5-a5f3-47cd0f8d2f18",
+    "name": "DealRadar Flask Prototype",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Manual verification flow for the DealRadar Flask prototype."
+  },
+  "item": [
+    {
+      "name": "00 Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Health returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 Register User 1",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"seller@example.com\",\n  \"firstName\": \"Deal\",\n  \"lastName\": \"Hunter\",\n  \"password\": \"StrongPass123\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/register",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "register"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Register user 1 returns 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "var body = pm.response.json();",
+              "if (body.accessToken) {",
+              "    pm.environment.set('tokenUser1', body.accessToken);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Login User 1",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"seller@example.com\",\n  \"password\": \"StrongPass123\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Login user 1 returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "var body = pm.response.json();",
+              "if (body.accessToken) {",
+              "    pm.environment.set('tokenUser1', body.accessToken);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Create Alert Rule 1",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenUser1}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"keyword\": \"iphone\",\n  \"category\": \"electronics\",\n  \"minPrice\": 100,\n  \"maxPrice\": 500,\n  \"location\": \"rotterdam\",\n  \"active\": true\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/alert-rules",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "alert-rules"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Create alert rule 1 returns 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "var body = pm.response.json();",
+              "if (body.id) {",
+              "    pm.environment.set('ruleId1', body.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Create Alert Rule 2",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenUser1}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"keyword\": \"macbook\",\n  \"category\": \"electronics\",\n  \"minPrice\": 500,\n  \"maxPrice\": 1200,\n  \"location\": \"utrecht\",\n  \"active\": true\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/alert-rules",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "alert-rules"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Create alert rule 2 returns 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "var body = pm.response.json();",
+              "if (body.id) {",
+              "    pm.environment.set('ruleId2', body.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 Get Alert Rules",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenUser1}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/alert-rules",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "alert-rules"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Get alert rules returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 Duplicate Alert Rule",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenUser1}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"keyword\": \"iphone\",\n  \"category\": \"electronics\",\n  \"minPrice\": 100,\n  \"maxPrice\": 500,\n  \"location\": \"rotterdam\",\n  \"active\": true\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/alert-rules",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "alert-rules"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Duplicate alert rule returns 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 Invalid Alert Rule Price Range",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenUser1}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"keyword\": \"ipad\",\n  \"minPrice\": 500,\n  \"maxPrice\": 100\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/alert-rules",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "alert-rules"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Invalid alert rule range returns 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 Create Listing",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenUser1}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"externalId\": \"mk-1\",\n  \"sourceName\": \"marktplaats\",\n  \"title\": \"MacBook Pro 14\",\n  \"description\": \"Laptop in good state\",\n  \"price\": 1299,\n  \"currency\": \"EUR\",\n  \"city\": \"Utrecht\",\n  \"url\": \"https://example.com/listings/mk-1\",\n  \"postedAt\": \"2026-04-03T09:00:00\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/listings",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "listings"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Create listing returns 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "var body = pm.response.json();",
+              "if (body.id) {",
+              "    pm.environment.set('listingId', body.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 Get Listings",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenUser1}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/listings",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "listings"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Get listings returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 Get Listing By Id",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenUser1}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/listings/{{listingId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "listings",
+            "{{listingId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Get listing by id returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 Update Listing",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenUser1}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"externalId\": \"mk-1\",\n  \"sourceName\": \"marktplaats\",\n  \"title\": \"MacBook Pro 14\",\n  \"description\": \"Laptop in good state\",\n  \"price\": 1199,\n  \"currency\": \"EUR\",\n  \"city\": \"Utrecht\",\n  \"url\": \"https://example.com/listings/mk-1\",\n  \"postedAt\": \"2026-04-03T09:00:00\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/listings/{{listingId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "listings",
+            "{{listingId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Update listing returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 Create Manual Match",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenUser1}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"alertRuleId\": {{ruleId2}},\n  \"listingId\": {{listingId}}\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/matches",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "matches"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Create manual match returns 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "var body = pm.response.json();",
+              "if (body.id) {",
+              "    pm.environment.set('matchId', body.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 Get Matches",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenUser1}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/matches",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "matches"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Get matches returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 Get Match By Id",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenUser1}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/matches/{{matchId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "matches",
+            "{{matchId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Get match by id returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15 Update Match Status",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenUser1}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"reviewed\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/matches/{{matchId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "matches",
+            "{{matchId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Update match status returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "16 Invalid Match Status",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenUser1}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"invalid_status\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/matches/{{matchId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "matches",
+            "{{matchId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Invalid match status returns 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "17 Delete Match",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenUser1}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/matches/{{matchId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "matches",
+            "{{matchId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Delete match returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "18 Register User 2",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"buyer@example.com\",\n  \"firstName\": \"Second\",\n  \"lastName\": \"User\",\n  \"password\": \"StrongPass123\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/register",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "register"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Register user 2 returns 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "var body = pm.response.json();",
+              "if (body.accessToken) {",
+              "    pm.environment.set('tokenUser2', body.accessToken);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "19 Login User 2",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"buyer@example.com\",\n  \"password\": \"StrongPass123\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Login user 2 returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "var body = pm.response.json();",
+              "if (body.accessToken) {",
+              "    pm.environment.set('tokenUser2', body.accessToken);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "20 Get Alert Rules As User 2",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenUser2}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/alert-rules",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "alert-rules"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Get alert rules as user 2 returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "21 Ingestion Batch",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenUser1}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"listings\": [\n    {\n      \"externalId\": \"mk-iphone-1\",\n      \"sourceName\": \"marktplaats\",\n      \"title\": \"iPhone 14 128GB\",\n      \"description\": \"Used phone with box electronics\",\n      \"price\": 450,\n      \"currency\": \"EUR\",\n      \"city\": \"Rotterdam\",\n      \"url\": \"https://example.com/listings/mk-iphone-1\",\n      \"postedAt\": \"2026-04-03T10:00:00\"\n    },\n    {\n      \"externalId\": \"mk-bike-1\",\n      \"sourceName\": \"marktplaats\",\n      \"title\": \"City bike\",\n      \"description\": \"Daily commuter bike\",\n      \"price\": 150,\n      \"currency\": \"EUR\",\n      \"city\": \"Rotterdam\",\n      \"url\": \"https://example.com/listings/mk-bike-1\",\n      \"postedAt\": \"2026-04-03T10:30:00\"\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/ingestion/listings",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "ingestion",
+            "listings"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Ingestion batch returns 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "var body = pm.response.json();",
+              "pm.test('Ingestion creates exactly one match', function () {",
+              "    pm.expect(body.matchCount).to.eql(1);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "22 Invalid Ingestion Payload Shape",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenUser1}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "[\n  {\n    \"externalId\": \"bad-1\"\n  }\n]"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/ingestion/listings",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "ingestion",
+            "listings"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Invalid ingestion payload returns 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "23 Get Matches After Ingestion",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{tokenUser1}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/matches",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "matches"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Get matches after ingestion returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

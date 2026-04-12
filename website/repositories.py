@@ -34,6 +34,17 @@ class AlertRuleRepository:
         return db.session.execute(statement).scalar_one_or_none()
 
     @staticmethod
+    def find_duplicate_for_user(user_id: int, signature: str, exclude_rule_id: int | None = None):
+        statement = select(AlertRule).where(
+            AlertRule.user_id == user_id,
+            AlertRule.signature == signature,
+        )
+        if exclude_rule_id is not None:
+            statement = statement.where(AlertRule.id != exclude_rule_id)
+        with db.session.no_autoflush:
+            return db.session.execute(statement).scalar_one_or_none()
+
+    @staticmethod
     def list_active():
         statement = select(AlertRule).where(AlertRule.active.is_(True))
         return list(db.session.execute(statement).scalars())

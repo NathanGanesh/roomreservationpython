@@ -114,6 +114,67 @@ For auth testing:
 - updating the profile does not automatically mint a fresh token; the current token remains valid until its normal expiry
 - manual API verification was done with Postman by reusing the returned JWT as `Authorization: Bearer <token>` on protected routes
 
+## How ingestion and matching work
+
+The Flask prototype has two different listing flows:
+
+- `POST /listings` creates one listing from one JSON object
+- `POST /ingestion/listings` accepts `{ "listings": [...] }` and handles batch ingestion
+
+The ingestion endpoint does more than plain CRUD:
+
+- it stores each submitted listing first
+- if a listing with the same `sourceName + externalId` does not exist yet, it creates a new listing
+- if a listing with the same `sourceName + externalId` already exists, it reuses and updates that listing
+- after storing the listings, it evaluates the active alert rules
+- it returns:
+  - `storedListings`
+  - `createdMatches`
+  - `matchCount`
+
+A listing matches an alert rule when the current rule checks pass:
+
+- the rule `keyword` must appear in the listing title or description
+- if the rule has `category`, that text must appear in the listing description
+- if the rule has `location`, that text must appear in the listing city
+- if the rule has `minPrice`, the listing price must be at least that value
+- if the rule has `maxPrice`, the listing price must be at most that value
+
+Only active alert rules are evaluated, and duplicate matches for the same `alertRuleId + listingId` are not created twice.
+
+### Manual vs automatic matches
+
+There are two ways matches appear in the prototype:
+
+- automatic matches:
+  - created by `POST /ingestion/listings`
+  - happen after listings are stored and evaluated against active alert rules
+- manual matches:
+  - created by `POST /matches`
+  - require an explicit `alertRuleId` and `listingId`
+  - only work if the alert rule belongs to the current user and the listing exists
+
+Allowed match statuses are:
+
+- `new`
+- `reviewed`
+- `dismissed`
+- `acted_on`
+
+Example:
+
+- alert rule:
+  - `keyword = iphone`
+  - `minPrice = 200`
+  - `maxPrice = 600`
+  - `location = rotterdam`
+- ingested listing:
+  - title contains `iPhone`
+  - price is `450`
+  - city is `Rotterdam`
+
+That listing is stored by the ingestion endpoint, it satisfies the rule, and one `Match` is created. That match appears in `createdMatches` in the ingestion response and later in `GET /matches`.
+
 ## Manual API examples
 
 The examples below match the current implemented Flask routes and were used in Postman during manual API verification.
